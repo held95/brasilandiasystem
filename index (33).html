@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Relatório Médico - Martins & Gagliotti</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(to right, #e0f7fa, #ffffff);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    header {
+      width: 100%;
+      padding: 20px;
+      background: linear-gradient(to right, #0097a7, #00bcd4);
+      color: white;
+      text-align: center;
+      position: relative;
+      box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    header img {
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      height: 60px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 32px;
+      font-weight: 600;
+      text-shadow: 1px 1px 2px #006064;
+    }
+
+    input[type="file"] {
+      margin: 30px 0 10px;
+      font-size: 16px;
+    }
+
+    button {
+      margin: 10px 5px;
+      padding: 10px 25px;
+      background-color: #00796b;
+      border: none;
+      color: white;
+      font-size: 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #004d40;
+    }
+
+    table {
+      margin-top: 20px;
+      border-collapse: collapse;
+      width: 90%;
+      max-width: 1000px;
+      background-color: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px 15px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #b2dfdb;
+      font-weight: bold;
+      color: #004d40;
+    }
+
+    td b {
+      color: #00695c;
+    }
+
+    @media screen and (max-width: 600px) {
+      table, thead, tbody, th, td, tr {
+        display: block;
+      }
+      th {
+        display: none;
+      }
+      td {
+        position: relative;
+        padding-left: 50%;
+      }
+      td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 10px;
+        font-weight: bold;
+        color: #006064;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Relatório Médico para CG - Brasilândia</h1>
+    <img src="https://res.cloudinary.com/dz4th0dhg/image/upload/v1/dr8tbwbfmkak4edo2rzj" alt="Logo Martins e Gagliotti">
+  </header>
+
+  <input type="file" id="inputExcel" accept=".xlsx, .xls">
+  <button onclick="processarArquivo()">Gerar Relatório</button>
+
+  <table id="output"></table>
+
+  <div>
+    <button onclick="gerarExcel()">Gerar Excel</button>
+    <button onclick="gerarPDF()">Gerar PDF</button>
+  </div>
+
+  <script>
+    const crms = {
+      "ALETHÉA GENOVESI": 144857, "ANDREA ALEIXO": 88729, "BRENO BRANDÃO": 219243,
+      "BÁRBARA BORGES": 256910, "CAROLINA NOVO": 225706, "CRYSTHYAN MAGNO": 180059,
+      "DANILO SANTOS": 270096, "DIEGO TAVARES": 142592, "DOMINGOS SAVIO": 90203,
+      "EDGAR ARCE": 83533, "FABRÍCIO RAMADA": 132458, "FLORENCE MEGALE": 190096,
+      "GLAUCO BOLELLI": 129732, "IGOR SENA": 231684, "JOISE MAREM": 188081,
+      "JOÃO MARCEL SAN SEVERINO": 182634, "JOÃO MARCOS LEÃO": 176939,
+      "KASSIA FÉLIX": 243025, "KELVIN HAMILTON": 222210, "LEANDRO BITTENCOURT": 5201078275,
+      "LEONARDO MOTA": 103122, "LUCIANA CRISTINA": 130881, "LUÍS FERNANDO VIDAL": 208101,
+      "LUÍS HUMBERTO": 243804, "MARCELLO NUNES": 81301, "MARILIA POSSATI": 95904,
+      "MATHEUS FERNANDES": 89757, "MATHEUS REGINATO": 242851, "PAULO ROBERTO": 235329,
+      "RUBENS RIGO": 243542, "VICTOR HUGO": 75139, "VINICIUS PEREIRA": 223870,
+      "WALTER NUNEZ": 258232
+    };
+
+    const coordenadores = {
+      "BRENO BRANDÃO": 17748.12,
+      "IGOR SENA": 8000.00
+    };
+
+    const crmsComINSS = new Set([
+      87876, 216393, 161856, 235284, 182167, 182634, 150242, 193265,
+      234969, 235329, 223519, 232282, 108769, 260559, 193045, 132061, 176627
+    ]);
+
+    const ignorar = [
+      "COR", "LEGENDA", "DIURNO 07-19h", "NOTURNO 19-07h", "DIARISTA 0", "TROCAS / SUBSTITUIÇÕES",
+      "PRIMEIRO PLANTÃO", "NECESSÁRIO SUBSTITUIÇÃO", "VAGO", "19-07", "07-19",
+      "CIRURGIA GERAL - MAIO - M&G - HOSPITAL MUNICIPAL DA BRASILÂNDIA",
+      "SEGUNDA FEIRA", "TERÇA FEIRA", "QUARTA FEIRA", "QUINTA FEIRA", "SEXTA FEIRA",
+      "SÁBADO", "DOMINGO", "DIAR.", "AMB."
+    ];
+
+    const crmsNormalizado = {};
+    for (const [nome, crm] of Object.entries(crms)) {
+      crmsNormalizado[normalizarNome(nome)] = crm;
+    }
+
+    function normalizarNome(nome) {
+      return nome.trim().normalize("NFD").replace(/[^\w\s]/gi, "").replace(/\s+/g, ' ').toUpperCase();
+    }
+
+    function processarArquivo() {
+      const fileInput = document.getElementById("inputExcel");
+      const file = fileInput.files[0];
+      if (!file) return alert("Selecione um arquivo Excel.");
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const conteudo = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+        const mapa = {};
+
+        conteudo.flat().forEach(cell => {
+          if (typeof cell === "string" && cell.trim()) {
+            let texto = cell.replace("13-19h", "").replace("7-13h", "").replace(/[()]/g, "").replace(/\s+/g, ' ').trim();
+            if (!texto) return;
+            const horas = (cell.includes("13-19h") || cell.includes("7-13h")) ? 6 : 12;
+
+            const nomesSeparados = texto.split(/\s{2,}/g).map(n => n.trim()).filter(n => n);
+            nomesSeparados.forEach(nome => {
+              const norm = normalizarNome(nome);
+              if (ignorar.some(palavra => norm.includes(normalizarNome(palavra)))) return;
+
+              if (!mapa[norm]) mapa[norm] = { nome, horas: 0 };
+              mapa[norm].horas += horas;
+            });
+          }
+        });
+
+        const dadosFinais = Object.values(mapa).map(m => {
+          const nomeNorm = normalizarNome(m.nome);
+          const crm = crmsNormalizado[nomeNorm] || "";
+          const valor_liquido = m.horas * 125;
+          const coordenacao = coordenadores[nomeNorm] || 0;
+          const inss = crmsComINSS.has(crm) ? 470.58 : 0;
+          const total = valor_liquido + coordenacao - inss;
+          return {
+            nome: m.nome,
+            crm,
+            horas: m.horas,
+            valor_liquido,
+            coordenacao,
+            inss,
+            total
+          };
+        });
+
+        exibirTabela(dadosFinais);
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    function exibirTabela(dados) {
+      const tabela = document.getElementById("output");
+      tabela.innerHTML = "";
+      const header = tabela.insertRow();
+      header.innerHTML = "<th>Nome</th><th>CRM</th><th>Horas Trabalhadas</th><th>Valor Líquido</th><th>Coordenação</th><th>INSS</th><th>Valor Total</th>";
+
+      dados.forEach(m => {
+        const row = tabela.insertRow();
+        row.innerHTML = `
+          <td>${m.nome}</td>
+          <td>${m.crm}</td>
+          <td>${m.horas}</td>
+          <td>R$ ${m.valor_liquido.toFixed(2)}</td>
+          <td>R$ ${m.coordenacao.toFixed(2)}</td>
+          <td>R$ ${m.inss.toFixed(2)}</td>
+          <td><b>R$ ${m.total.toFixed(2)}</b></td>
+        `;
+      });
+    }
+
+    function gerarExcel() {
+      const wb = XLSX.utils.book_new();
+      const rows = [["Nome", "CRM", "Horas", "Valor Líquido", "Coordenação", "INSS", "Valor Total"]];
+      document.querySelectorAll("#output tr:not(:first-child)").forEach(row => {
+        const cells = Array.from(row.cells).map(td => td.textContent.replace("R$ ", "").replace(",", "."));
+        rows.push(cells);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, "Relatorio");
+      XLSX.writeFile(wb, "relatorio_medico.xlsx");
+    }
+
+    async function gerarPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFontSize(12);
+      doc.text("Relatório Médico", 10, 10);
+      const body = [];
+      document.querySelectorAll("#output tr:not(:first-child)").forEach(row => {
+        const linha = Array.from(row.cells).map(td => td.textContent);
+        body.push(linha);
+      });
+      doc.autoTable({
+        startY: 20,
+        head: [["Nome", "CRM", "Horas", "Líquido", "Coordenação", "INSS", "Total"]],
+        body
+      });
+      doc.save("relatorio_medico.pdf");
+    }
+  </script>
+</body>
+</html>
